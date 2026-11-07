@@ -4,6 +4,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- ==================== ข้อมูลตัวอักษร ====================
@@ -150,20 +151,17 @@ local function search(picks)
 	for _, w in ipairs(anyOrder) do table.insert(inOrder, w) end
 	return inOrder
 end
-
--- ==================== ⭐ ระบบคัดลอกลงคลิปบอร์ด ====================
+-- ==================== ระบบคัดลอกคลิปบอร์ด ====================
 local Clipboard = {
 	Enabled = true,
-	ShowToast = true,     -- แสดง toast ยืนยัน
-	ToastDuration = 1.5,  -- ระยะเวลา toast (วินาที)
-	AutoClear = false,    -- ล้างคลิปบอร์ดอัตโนมัติหลัง X วิ (ปิดไว้)
-	ClearAfter = 30,      -- ล้างหลัง 30 วิ (ถ้าเปิด AutoClear)
+	ShowToast = true,
+	ToastDuration = 1.5,
+	AutoClear = false,
+	ClearAfter = 30,
 }
 
--- ⭐ ฟังก์ชันคัดลอกข้อความลงคลิปบอร์ด
--- ใช้ setclipboard ของ executor (Synapse, Krnl, Fluxus, Delta, ฯลฯ)
 local function copyToClipboard(text)
-	local success, err = pcall(function()
+	local ok, err = pcall(function()
 		if setclipboard then
 			setclipboard(text)
 		elseif toclipboard then
@@ -174,7 +172,7 @@ local function copyToClipboard(text)
 			error("Executor นี้ไม่มีฟังก์ชัน clipboard")
 		end
 	end)
-	return success, err
+	return ok, err
 end
 
 -- ==================== UI Helpers ====================
@@ -206,7 +204,7 @@ local function label(parent, props)
 	return l
 end
 
--- ==================== 📱 Toast แจ้งเตือน (มุมล่างจอ) ====================
+-- ==================== 📱 Toast แจ้งเตือน ====================
 local toastGui = Instance.new("ScreenGui")
 toastGui.Name = "CopyToast"
 toastGui.ResetOnSpawn = false
@@ -229,7 +227,7 @@ toastStroke.Color = C.accent
 toastStroke.Thickness = 2
 toastStroke.Transparency = 1
 
-local toastIcon = label(toast, {
+label(toast, {
 	Size = UDim2.fromOffset(40, 56),
 	Position = UDim2.fromOffset(8, 0),
 	Text = "✓",
@@ -238,7 +236,7 @@ local toastIcon = label(toast, {
 	Font = Enum.Font.SourceSansBold,
 })
 
-local toastTitle = label(toast, {
+label(toast, {
 	Size = UDim2.new(1, -60, 0, 26),
 	Position = UDim2.fromOffset(52, 6),
 	Text = "คัดลอกแล้ว",
@@ -257,13 +255,10 @@ local toastWord = label(toast, {
 	TextXAlignment = Enum.TextXAlignment.Left,
 })
 
-local toastTween = nil
-local toastTask = nil
+local toastTween, toastTask
 
 local function showToast(word)
 	if not Clipboard.ShowToast then return end
-
-	-- ยกเลิก animation เก่า
 	if toastTween then toastTween:Cancel() end
 	if toastTask then task.cancel(toastTask) end
 
@@ -271,56 +266,39 @@ local function showToast(word)
 	toast.Visible = true
 	toast.BackgroundTransparency = 1
 	toastStroke.Transparency = 1
-
-	-- slide up + fade in
 	toast.Position = UDim2.new(0.5, 0, 1, 20)
-	toastTween = game:GetService("TweenService"):Create(
+
+	toastTween = TweenService:Create(
 		toast,
 		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{
-			Position = UDim2.new(0.5, 0, 1, -30),
-			BackgroundTransparency = 0.1,
-		}
+		{ Position = UDim2.new(0.5, 0, 1, -30), BackgroundTransparency = 0.1 }
 	)
 	toastTween:Play()
-
-	game:GetService("TweenService"):Create(
-		toastStroke,
-		TweenInfo.new(0.3),
-		{ Transparency = 0 }
-	):Play()
+	TweenService:Create(toastStroke, TweenInfo.new(0.3), { Transparency = 0 }):Play()
 
 	toastTask = task.delay(Clipboard.ToastDuration, function()
-		local fadeOut = game:GetService("TweenService"):Create(
+		local fadeOut = TweenService:Create(
 			toast,
 			TweenInfo.new(0.3),
-			{
-				Position = UDim2.new(0.5, 0, 1, 20),
-				BackgroundTransparency = 1,
-			}
+			{ Position = UDim2.new(0.5, 0, 1, 20), BackgroundTransparency = 1 }
 		)
 		fadeOut:Play()
-		game:GetService("TweenService"):Create(
-			toastStroke,
-			TweenInfo.new(0.3),
-			{ Transparency = 1 }
-		):Play()
+		TweenService:Create(toastStroke, TweenInfo.new(0.3), { Transparency = 1 }):Play()
 		fadeOut.Completed:Connect(function()
 			toast.Visible = false
 		end)
 	end)
 end
 
--- ==================== หน้าต่างเกมเลือกพยัญชนะ ====================
+-- ==================== 🪟 หน้าต่างหลัก (เปิด/ปิดด้วยปุ่มลอย) ====================
 local gameGui = Instance.new("ScreenGui")
 gameGui.Name = "ThaiLettersGui"
 gameGui.ResetOnSpawn = false
 gameGui.IgnoreGuiInset = true
 gameGui.DisplayOrder = 998
-gameGui.Enabled = false
 gameGui.Parent = playerGui
 
--- ⭐ ปุ่มลอยเปิด/ปิด (มุมขวาบน)
+-- ⭐ ปุ่มลอย "ก" (มุมขวาบน)
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size = UDim2.fromOffset(56, 56)
 toggleBtn.Position = UDim2.new(1, -72, 0, 60)
@@ -336,7 +314,7 @@ local tgStroke = Instance.new("UIStroke", toggleBtn)
 tgStroke.Color = Color3.fromRGB(10, 20, 15)
 tgStroke.Thickness = 2
 
--- ==================== แผงหลัก (แนวนอน กะทัดรัด) ====================
+-- ⭐ แผงหลัก (ซ่อนเริ่มต้น)
 local main = Instance.new("Frame")
 main.Size = UDim2.fromOffset(500, 280)
 main.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -480,7 +458,7 @@ local picks, buttons = {}, {}
 
 local function createWordButton(parent, word, order)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, -8, 0, 34)   -- ⭐ สูงขึ้นให้แตะง่ายบนมือถือ
+	btn.Size = UDim2.new(1, -8, 0, 34)
 	btn.BackgroundColor3 = C.word
 	btn.Text = word
 	btn.TextSize = 18
@@ -494,7 +472,6 @@ local function createWordButton(parent, word, order)
 	local pad = Instance.new("UIPadding", btn)
 	pad.PaddingLeft = UDim.new(0, 10)
 
-	-- ⭐ ไอคอนคัดลอกทางขวา
 	local copyIcon = label(btn, {
 		Size = UDim2.fromOffset(30, 34),
 		Position = UDim2.new(1, -34, 0, 0),
@@ -507,7 +484,6 @@ local function createWordButton(parent, word, order)
 	btn.MouseEnter:Connect(function() btn.BackgroundColor3 = C.wordHover end)
 	btn.MouseLeave:Connect(function() btn.BackgroundColor3 = C.word end)
 
-	-- ⭐ แตะ → คัดลอกลงคลิปบอร์ด
 	btn.Activated:Connect(function()
 		if not Clipboard.Enabled then
 			Rayfield:Notify({
@@ -520,10 +496,7 @@ local function createWordButton(parent, word, order)
 
 		local ok, err = copyToClipboard(word)
 		if ok then
-			-- แสดง toast
 			showToast(word)
-
-			-- เปลี่ยนสีปุ่มชั่วคราว
 			btn.BackgroundColor3 = C.copied
 			copyIcon.Text = "✓"
 			copyIcon.TextTransparency = 0
@@ -536,10 +509,8 @@ local function createWordButton(parent, word, order)
 				copyIcon.TextColor3 = C.text
 			end)
 
-			-- อัปเดตสถานะ
 			status.Text = "✅ คัดลอกแล้ว — ไปวางเองในช่อง"
 
-			-- ล้างคลิปบอร์ดอัตโนมัติ (ถ้าเปิด)
 			if Clipboard.AutoClear then
 				task.delay(Clipboard.ClearAfter, function()
 					copyToClipboard("")
@@ -610,16 +581,20 @@ clear.Activated:Connect(function()
 	refresh()
 end)
 
--- ==================== ปุ่มลอย toggle ====================
+-- ==================== เปิด/ปิด + ลาก ====================
 local function setVisible(v)
 	main.Visible = v
 	toggleBtn.Text = v and "✕" or "ก"
 	toggleBtn.BackgroundColor3 = v and C.close or C.accent
+	if v then refresh() end
 end
 
--- ลากปุ่มลอย (และแยกแยะการแตะ/ลาก)
-local toggleDragging = false
-local toggleMoved = false
+closeBtn.Activated:Connect(function()
+	setVisible(false)
+end)
+
+-- ⭐ ลากปุ่มลอย (แยกแยะแตะ/ลาก)
+local toggleDragging, toggleMoved = false, false
 local tDragStart, tStartPos
 
 toggleBtn.InputBegan:Connect(function(input)
@@ -638,7 +613,6 @@ toggleBtn.InputEnded:Connect(function(input)
 		toggleDragging = false
 		if not toggleMoved then
 			setVisible(not main.Visible)
-			if main.Visible then refresh() end
 		end
 	end
 end)
@@ -686,7 +660,7 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
--- ==================== Rayfield Window ====================
+-- ==================== Rayfield Window (แค่แผงตั้งค่า) ====================
 local Window = Rayfield:CreateWindow({
 	Name = "Thai Letters",
 	LoadingTitle = "กำลังโหลด...",
@@ -695,48 +669,12 @@ local Window = Rayfield:CreateWindow({
 	KeySystem = false
 })
 
-local GameTab = Window:CreateTab("เลือกพยัญชนะ", 4483362458)
 local CopyTab = Window:CreateTab("📋 คัดลอก", 4483362458)
 local InfoTab = Window:CreateTab("วิธีใช้", 4483362458)
 
--- ==================== TAB หลัก ====================
-GameTab:CreateSection("เกมเลือกพยัญชนะ")
-GameTab:CreateLabel("เลือกพยัญชนะ 2-3 ตัว เพื่อหาคำ", 4483362458)
-GameTab:CreateLabel("📚 คลังคำ: " .. #WORDS .. " คำ", 4483362458, Color3.fromRGB(95, 207, 159))
-GameTab:CreateLabel("💡 แตะคำ → คัดลอกลงคลิปบอร์ด", 4483362458, Color3.fromRGB(255, 220, 100))
-GameTab:CreateLabel("แล้วไปวางเองในช่องที่ต้องการ", 4483362458, Color3.fromRGB(255, 220, 100))
-
-GameTab:CreateToggle({
-	Name = "เปิด/ปิด หน้าต่างเลือกพยัญชนะ",
-	CurrentValue = false,
-	Flag = "LetterGameToggle",
-	Callback = function(value)
-		setVisible(value)
-		if value then refresh() end
-	end,
-})
-
-GameTab:CreateButton({
-	Name = "🔍 เปิดหน้าต่าง (ทางลัด)",
-	Callback = function()
-		setVisible(true)
-		refresh()
-	end,
-})
-
-GameTab:CreateButton({
-	Name = "🗑️ ล้างการเลือก",
-	Callback = function()
-		table.clear(picks)
-		refresh()
-	end,
-})
-
--- ==================== TAB คัดลอก ====================
 CopyTab:CreateSection("📋 ระบบคัดลอกคลิปบอร์ด")
-
-CopyTab:CreateLabel("แตะคำ → คัดลอกลงคลิปบอร์ดทันที", 4483362458, Color3.fromRGB(255, 220, 100))
-CopyTab:CreateLabel("แล้วไปวางเองในช่องที่ต้องการ (กดวางในเกม)", 4483362458, Color3.fromRGB(255, 220, 100))
+CopyTab:CreateLabel("แตะคำในหน้าต่าง → คัดลอกลงคลิปบอร์ด", 4483362458, Color3.fromRGB(255, 220, 100))
+CopyTab:CreateLabel("แล้วไปวางเองในช่องที่ต้องการ", 4483362458, Color3.fromRGB(255, 220, 100))
 
 CopyTab:CreateToggle({
 	Name = "เปิด/ปิด ระบบคัดลอก",
@@ -836,19 +774,19 @@ CopyTab:CreateButton({
 })
 
 -- ==================== TAB วิธีใช้ ====================
-InfoTab:CreateSection("📱 วิธีใช้งาน (มือถือ)")
-InfoTab:CreateLabel("1. แตะปุ่ม 'ก' มุมขวาบนเพื่อเปิดหน้าต่าง", 4483362458)
+InfoTab:CreateSection("📱 วิธีใช้งาน")
+InfoTab:CreateLabel("1. แตะปุ่ม 'ก' มุมขวาบน → เปิดหน้าต่าง", 4483362458)
 InfoTab:CreateLabel("2. แตะตัวอักษร 2-3 ตัว", 4483362458)
 InfoTab:CreateLabel("3. แตะคำที่ต้องการ → คัดลอกลงคลิปบอร์ด", 4483362458, Color3.fromRGB(95, 207, 159))
-InfoTab:CreateLabel("4. ไปที่ช่องที่ต้องการในเกม", 4483362458)
-InfoTab:CreateLabel("5. กดวาง (paste) — คำจะปรากฏ", 4483362458, Color3.fromRGB(95, 207, 159))
+InfoTab:CreateLabel("4. กด '✕' หรือปุ่ม 'ก' เพื่อปิดหน้าต่าง", 4483362458)
+InfoTab:CreateLabel("5. ไปที่ช่องในเกม → กดวาง (paste)", 4483362458, Color3.fromRGB(95, 207, 159))
 
-InfoTab:CreateSection("✨ ข้อดีสำหรับมือถือ")
-InfoTab:CreateLabel("• ไม่ต้องพึ่งการพิมพ์อัตโนมัติ", 4483362458)
-InfoTab:CreateLabel("• ทำงานได้ทุกเกม ทุก executor", 4483362458)
-InfoTab:CreateLabel("• ปุ่มใหญ่ แตะง่าย (34px สูง)", 4483362458)
-InfoTab:CreateLabel("• มีไอคอน 📋 บอกว่าคัดลอกได้", 4483362458)
-InfoTab:CreateLabel("• Toast แจ้งเตือนที่มุมล่างจอ", 4483362458)
+InfoTab:CreateSection("✨ ฟีเจอร์")
+InfoTab:CreateLabel("• ลากปุ่ม 'ก' เพื่อย้ายตำแหน่ง", 4483362458)
+InfoTab:CreateLabel("• ลากหัวหน้าต่างเพื่อย้ายแผง", 4483362458)
+InfoTab:CreateLabel("• ปุ่มตัวอักษรใหญ่ แตะง่าย", 4483362458)
+InfoTab:CreateLabel("• Toast แจ้งเตือนล่างจอ", 4483362458)
+InfoTab:CreateLabel("• ไม่ต้องเปิด Rayfield ก็ใช้ได้", 4483362458, Color3.fromRGB(255, 220, 100))
 
 InfoTab:CreateSection("📊 สถิติ")
 InfoTab:CreateLabel("📚 คำทั้งหมด: " .. #WORDS, 4483362458, Color3.fromRGB(95, 207, 159))
@@ -857,6 +795,6 @@ InfoTab:CreateLabel("🗑️ คำซ้ำที่กรอง: " .. dupCount
 -- ==================== แจ้งเตือน ====================
 Rayfield:Notify({
 	Title = "โหลดสำเร็จ",
-	Content = "แตะคำ = คัดลอกทันที!",
+	Content = "แตะปุ่ม 'ก' มุมขวาบนเพื่อเริ่ม",
 	Duration = 3
 })
