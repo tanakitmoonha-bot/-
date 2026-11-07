@@ -16,8 +16,7 @@ for _, c in ipairs({
 	table.insert(LETTERS, c)
 end
 
--- ==================== คลังคำ (ย่อ) ====================
--- ใช้ WORDS_OLD + WORDS_NEW จากโค้ดก่อนหน้าได้เลย
+-- ==================== คลังคำ ====================
 local WORDS_OLD = [[
 ไก่ กระต่าย กุ้ง ควาย ช้าง งู จิ้งจก จระเข้ ฉลาม ปลา ปู ผีเสื้อ ผึ้ง ม้า แมว มังกร ยีราฟ ลิง เสือ สุนัข หมู หมา หอย หนอน วัว นก นกฮูก กระรอก กวาง กระทิง แกะ แพะ ลา อูฐ หมี หมาป่า สิงโต แรด ค้างคาว เต่า กบ ปลาไหล ปลาหมึก ปลาโลมา วาฬ แมงมุม ยุง มด ตั๊กแตน เป็ด ห่าน เหยี่ยว อินทรี
 กล้วย มะม่วง ทุเรียน ส้ม มะนาว มะพร้าว องุ่น แตงโม แตงกวา ฝรั่ง ชมพู่ ลำไย ลิ้นจี่ เงาะ มังคุด ขนุน สับปะรด มะละกอ ส้มโอ ทับทิม พุทรา มะขาม ละมุด ฟักทอง มะเขือเทศ ผักบุ้ง ผักกาด แครอท หัวหอม กระเทียม พริก ขิง ข่า ตะไคร้ ใบเตย กะเพรา เห็ด ข้าวโพด มันฝรั่ง เผือก ข้าว ก๋วยเตี๋ยว ส้มตำ ต้มยำ ผัดไทย ขนมจีน ข้าวมันไก่ น้ำพริก ไข่เจียว ไข่ต้ม หมูทอด ไก่ย่าง ขนมปัง เค้ก เนย นมสด ไอศกรีม ช็อกโกแลต กาแฟ ชา น้ำผึ้ง
@@ -132,7 +131,6 @@ end
 addWords(WORDS_OLD)
 addWords(WORDS_NEW)
 
--- ==================== ฟังก์ชันค้นหา ====================
 local function search(picks)
 	local inOrder, anyOrder = {}, {}
 	for _, w in ipairs(WORDS) do
@@ -153,151 +151,30 @@ local function search(picks)
 	return inOrder
 end
 
--- ==================== ⭐ ระบบพิมพ์ตามโฟกัส ====================
-local AutoType = {
+-- ==================== ⭐ ระบบคัดลอกลงคลิปบอร์ด ====================
+local Clipboard = {
 	Enabled = true,
-	Delay = 0.15,
-	Typing = false,
-	Mode = "auto",  -- "auto" = ใช้ช่องที่โฟกัส / "chat" = บังคับลงแชท
-	UseEnter = true,  -- กด Enter หลังพิมพ์หรือไม่
-	ClearFirst = false,  -- ลบข้อความเก่าในช่องก่อนพิมพ์
+	ShowToast = true,     -- แสดง toast ยืนยัน
+	ToastDuration = 1.5,  -- ระยะเวลา toast (วินาที)
+	AutoClear = false,    -- ล้างคลิปบอร์ดอัตโนมัติหลัง X วิ (ปิดไว้)
+	ClearAfter = 30,      -- ล้างหลัง 30 วิ (ถ้าเปิด AutoClear)
 }
 
--- ⭐ หา TextBox ที่กำลังโฟกัสอยู่ (รวมทั้ง PlayerGui, CoreGui, workspace)
-local function findFocusedTextBox()
-	local function scanGui(root)
-		if not root then return nil end
-		for _, obj in ipairs(root:GetDescendants()) do
-			if obj:IsA("TextBox") and obj:IsFocused() and obj.Visible then
-				return obj
-			end
-		end
-		return nil
-	end
-
-	-- 1) PlayerGui
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	local found = scanGui(pg)
-	if found then return found end
-
-	-- 2) CoreGui (เช่น ช่องแชท)
-	local coreFound = nil
-	pcall(function()
-		local cg = game:GetService("CoreGui")
-		coreFound = scanGui(cg)
-	end)
-	if coreFound then return coreFound end
-
-	-- 3) workspace (บางเกมมี TextBox ในโลก)
-	return scanGui(workspace)
-end
-
--- ⭐ ส่งคีย์ไปที่ TextBox ที่โฟกัสอยู่
-local function typeIntoFocusedBox(text)
-	local box = findFocusedTextBox()
-	if not box then
-		return false, "ไม่พบช่องที่โฟกัส"
-	end
-
-	-- ถ้าต้องการลบข้อความเก่า
-	if AutoType.ClearFirst then
-		box.Text = ""
-		task.wait(0.05)
-	end
-
-	-- ใส่ข้อความ
-	box.Text = text
-	task.wait(0.05)
-
-	-- ถ้าเปิด UseEnter และเป็นช่องแชท → กด Enter
-	if AutoType.UseEnter then
-		UserInputService:SendKeyEvent(Enum.KeyCode.Return, true)
-		UserInputService:SendKeyEvent(Enum.KeyCode.Return, false)
-	end
-
-	return true, box
-end
-
--- ⭐ ส่งลงแชท (ใช้เมื่อไม่มีช่องโฟกัส)
-local function sendToChat(text)
-	local TextChatService = game:GetService("TextChatService")
-	if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-		local channels = TextChatService:FindFirstChild("TextChannels")
-		if channels then
-			local general = channels:FindFirstChild("RBXGeneral")
-			if general then
-				general:SendAsync(text)
-				return true
-			end
-		end
-	end
-	-- Legacy fallback
-	local vu = game:GetService("VirtualUser")
-	vu:CaptureController()
-	UserInputService:SendKeyEvent(Enum.KeyCode.Slash, true)
-	UserInputService:SendKeyEvent(Enum.KeyCode.Slash, false)
-	task.wait(0.1)
-	UserInputService:SendKeyEvent(Enum.KeyCode.Backspace, true)
-	UserInputService:SendKeyEvent(Enum.KeyCode.Backspace, false)
-	task.wait(0.1)
-	-- หา chatBox
-	local coreGui = game:GetService("CoreGui")
-	local chatBox = nil
-	pcall(function()
-		local rg = coreGui:FindFirstChild("RobloxGui")
-		if rg then
-			local chat = rg:FindFirstChild("Chat")
-			if chat then
-				local bar = chat:FindFirstChild("ChatBar")
-				if bar then
-					chatBox = bar:FindFirstChildWhichIsA("TextBox", true)
-				end
-			end
-		end
-	end)
-	if chatBox then
-		chatBox.Text = text
-		task.wait(0.05)
-		UserInputService:SendKeyEvent(Enum.KeyCode.Return, true)
-		UserInputService:SendKeyEvent(Enum.KeyCode.Return, false)
-		return true
-	end
-	return false
-end
-
--- ⭐ ฟังก์ชันหลัก — ตรวจโฟกัสแล้วพิมพ์ตรงนั้น
-local function smartType(text)
-	if AutoType.Typing then
-		return false, "กำลังพิมพ์อยู่"
-	end
-	AutoType.Typing = true
-
-	local ok, err = pcall(function()
-		task.wait(AutoType.Delay)
-
-		-- โหมด chat: บังคับลงแชทเสมอ
-		if AutoType.Mode == "chat" then
-			sendToChat(text)
-			return
-		end
-
-		-- โหมด auto: ตรวจช่องโฟกัสก่อน
-		local box = findFocusedTextBox()
-		if box then
-			-- มีช่องโฟกัส → พิมพ์ตรงนั้น
-			typeIntoFocusedBox(text)
+-- ⭐ ฟังก์ชันคัดลอกข้อความลงคลิปบอร์ด
+-- ใช้ setclipboard ของ executor (Synapse, Krnl, Fluxus, Delta, ฯลฯ)
+local function copyToClipboard(text)
+	local success, err = pcall(function()
+		if setclipboard then
+			setclipboard(text)
+		elseif toclipboard then
+			toclipboard(text)
+		elseif writeclipboard then
+			writeclipboard(text)
 		else
-			-- ไม่มีช่องโฟกัส → ส่งลงแชท
-			sendToChat(text)
+			error("Executor นี้ไม่มีฟังก์ชัน clipboard")
 		end
 	end)
-
-	AutoType.Typing = false
-	if not ok then
-		warn("[AutoType] ผิดพลาด: " .. tostring(err))
-		return false, tostring(err)
-	end
-	return true
+	return success, err
 end
 
 -- ==================== UI Helpers ====================
@@ -312,6 +189,8 @@ local C = {
 	tab = Color3.fromRGB(70, 160, 120),
 	word = Color3.fromRGB(40, 90, 72),
 	wordHover = Color3.fromRGB(60, 140, 110),
+	copied = Color3.fromRGB(120, 200, 100),
+	toastBg = Color3.fromRGB(40, 90, 72),
 }
 
 local function corner(o, r)
@@ -327,6 +206,111 @@ local function label(parent, props)
 	return l
 end
 
+-- ==================== 📱 Toast แจ้งเตือน (มุมล่างจอ) ====================
+local toastGui = Instance.new("ScreenGui")
+toastGui.Name = "CopyToast"
+toastGui.ResetOnSpawn = false
+toastGui.IgnoreGuiInset = true
+toastGui.DisplayOrder = 999
+toastGui.Parent = playerGui
+
+local toast = Instance.new("Frame")
+toast.Size = UDim2.new(1, -40, 0, 56)
+toast.AnchorPoint = Vector2.new(0.5, 1)
+toast.Position = UDim2.new(0.5, 0, 1, -30)
+toast.BackgroundColor3 = C.toastBg
+toast.BackgroundTransparency = 1
+toast.Visible = false
+toast.Parent = toastGui
+corner(toast, 14)
+
+local toastStroke = Instance.new("UIStroke", toast)
+toastStroke.Color = C.accent
+toastStroke.Thickness = 2
+toastStroke.Transparency = 1
+
+local toastIcon = label(toast, {
+	Size = UDim2.fromOffset(40, 56),
+	Position = UDim2.fromOffset(8, 0),
+	Text = "✓",
+	TextSize = 28,
+	TextColor3 = C.accent,
+	Font = Enum.Font.SourceSansBold,
+})
+
+local toastTitle = label(toast, {
+	Size = UDim2.new(1, -60, 0, 26),
+	Position = UDim2.fromOffset(52, 6),
+	Text = "คัดลอกแล้ว",
+	TextSize = 16,
+	Font = Enum.Font.SourceSansBold,
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local toastWord = label(toast, {
+	Size = UDim2.new(1, -60, 0, 22),
+	Position = UDim2.fromOffset(52, 28),
+	Text = "",
+	TextSize = 14,
+	TextColor3 = C.accent,
+	TextTransparency = 0.2,
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local toastTween = nil
+local toastTask = nil
+
+local function showToast(word)
+	if not Clipboard.ShowToast then return end
+
+	-- ยกเลิก animation เก่า
+	if toastTween then toastTween:Cancel() end
+	if toastTask then task.cancel(toastTask) end
+
+	toastWord.Text = word
+	toast.Visible = true
+	toast.BackgroundTransparency = 1
+	toastStroke.Transparency = 1
+
+	-- slide up + fade in
+	toast.Position = UDim2.new(0.5, 0, 1, 20)
+	toastTween = game:GetService("TweenService"):Create(
+		toast,
+		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			Position = UDim2.new(0.5, 0, 1, -30),
+			BackgroundTransparency = 0.1,
+		}
+	)
+	toastTween:Play()
+
+	game:GetService("TweenService"):Create(
+		toastStroke,
+		TweenInfo.new(0.3),
+		{ Transparency = 0 }
+	):Play()
+
+	toastTask = task.delay(Clipboard.ToastDuration, function()
+		local fadeOut = game:GetService("TweenService"):Create(
+			toast,
+			TweenInfo.new(0.3),
+			{
+				Position = UDim2.new(0.5, 0, 1, 20),
+				BackgroundTransparency = 1,
+			}
+		)
+		fadeOut:Play()
+		game:GetService("TweenService"):Create(
+			toastStroke,
+			TweenInfo.new(0.3),
+			{ Transparency = 1 }
+		):Play()
+		fadeOut.Completed:Connect(function()
+			toast.Visible = false
+		end)
+	end)
+end
+
 -- ==================== หน้าต่างเกมเลือกพยัญชนะ ====================
 local gameGui = Instance.new("ScreenGui")
 gameGui.Name = "ThaiLettersGui"
@@ -336,12 +320,30 @@ gameGui.DisplayOrder = 998
 gameGui.Enabled = false
 gameGui.Parent = playerGui
 
+-- ⭐ ปุ่มลอยเปิด/ปิด (มุมขวาบน)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.fromOffset(56, 56)
+toggleBtn.Position = UDim2.new(1, -72, 0, 60)
+toggleBtn.BackgroundColor3 = C.accent
+toggleBtn.Text = "ก"
+toggleBtn.TextColor3 = Color3.fromRGB(20, 40, 30)
+toggleBtn.TextSize = 30
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.Parent = gameGui
+corner(toggleBtn, 28)
+
+local tgStroke = Instance.new("UIStroke", toggleBtn)
+tgStroke.Color = Color3.fromRGB(10, 20, 15)
+tgStroke.Thickness = 2
+
+-- ==================== แผงหลัก (แนวนอน กะทัดรัด) ====================
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(500, 260)
+main.Size = UDim2.fromOffset(500, 280)
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = UDim2.fromScale(0.5, 0.5)
 main.BackgroundColor3 = C.bg
 main.BorderSizePixel = 0
+main.Visible = false
 main.Parent = gameGui
 corner(main, 14)
 
@@ -349,8 +351,9 @@ local stroke = Instance.new("UIStroke", main)
 stroke.Color = C.tab
 stroke.Thickness = 2
 
+-- Header
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0, 34)
+header.Size = UDim2.new(1, 0, 0, 38)
 header.BackgroundColor3 = C.panel
 header.BorderSizePixel = 0
 header.Parent = main
@@ -366,32 +369,33 @@ headerFix.Parent = header
 label(header, {
 	Size = UDim2.new(1, -90, 1, 0),
 	Position = UDim2.fromOffset(12, 0),
-	Text = "เลือกพยัญชนะ 2-3 ตัว",
+	Text = "📋 แตะคำเพื่อคัดลอก",
 	TextSize = 17,
 	Font = Enum.Font.SourceSansBold,
 	TextXAlignment = Enum.TextXAlignment.Left,
 })
 
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.fromOffset(26, 26)
-closeBtn.Position = UDim2.new(1, -34, 0, 4)
+closeBtn.Size = UDim2.fromOffset(30, 30)
+closeBtn.Position = UDim2.new(1, -40, 0, 4)
 closeBtn.BackgroundColor3 = C.close
 closeBtn.Text = "✕"
 closeBtn.TextColor3 = C.text
 closeBtn.TextSize = 16
 closeBtn.Font = Enum.Font.SourceSansBold
 closeBtn.Parent = header
-corner(closeBtn, 13)
-closeBtn.Activated:Connect(function() gameGui.Enabled = false end)
+corner(closeBtn, 15)
 
+-- เนื้อหา
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -16, 1, -46)
-content.Position = UDim2.fromOffset(8, 40)
+content.Size = UDim2.new(1, -16, 1, -50)
+content.Position = UDim2.fromOffset(8, 44)
 content.BackgroundTransparency = 1
 content.Parent = main
 
+-- ซ้าย: ตัวอักษร
 local leftPanel = Instance.new("Frame")
-leftPanel.Size = UDim2.new(0, 210, 1, 0)
+leftPanel.Size = UDim2.new(0, 200, 1, 0)
 leftPanel.BackgroundColor3 = C.panel
 leftPanel.BorderSizePixel = 0
 leftPanel.Parent = content
@@ -408,13 +412,14 @@ scroll.CanvasSize = UDim2.new()
 scroll.Parent = leftPanel
 
 local grid = Instance.new("UIGridLayout")
-grid.CellSize = UDim2.fromOffset(38, 38)
-grid.CellPadding = UDim2.fromOffset(4, 4)
+grid.CellSize = UDim2.fromOffset(40, 40)
+grid.CellPadding = UDim2.fromOffset(5, 5)
 grid.Parent = scroll
 
+-- ขวา: ผลลัพธ์
 local rightPanel = Instance.new("Frame")
-rightPanel.Size = UDim2.new(1, -218, 1, 0)
-rightPanel.Position = UDim2.fromOffset(218, 0)
+rightPanel.Size = UDim2.new(1, -208, 1, 0)
+rightPanel.Position = UDim2.fromOffset(208, 0)
 rightPanel.BackgroundColor3 = C.panel
 rightPanel.BorderSizePixel = 0
 rightPanel.Parent = content
@@ -430,7 +435,7 @@ local picked = label(pickedRow, {
 	Size = UDim2.new(1, -70, 1, 0),
 	Position = UDim2.fromOffset(4, 0),
 	Text = "-",
-	TextSize = 28,
+	TextSize = 26,
 	TextColor3 = C.accent,
 	Font = Enum.Font.SourceSansBold,
 	TextXAlignment = Enum.TextXAlignment.Left,
@@ -450,7 +455,7 @@ corner(clear, 8)
 local status = label(rightPanel, {
 	Size = UDim2.new(1, -12, 0, 20),
 	Position = UDim2.fromOffset(8, 48),
-	Text = "แตะคำเพื่อพิมพ์ลงช่องที่โฟกัส",
+	Text = "แตะตัวอักษรเพื่อเริ่ม",
 	TextSize = 13,
 	TextTransparency = 0.3,
 	TextXAlignment = Enum.TextXAlignment.Left,
@@ -467,7 +472,7 @@ results.CanvasSize = UDim2.new()
 results.Parent = rightPanel
 
 local list = Instance.new("UIListLayout")
-list.Padding = UDim.new(0, 3)
+list.Padding = UDim.new(0, 5)
 list.Parent = results
 
 -- ==================== ตรรกะ ====================
@@ -475,44 +480,78 @@ local picks, buttons = {}, {}
 
 local function createWordButton(parent, word, order)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, -8, 0, 28)
+	btn.Size = UDim2.new(1, -8, 0, 34)   -- ⭐ สูงขึ้นให้แตะง่ายบนมือถือ
 	btn.BackgroundColor3 = C.word
 	btn.Text = word
-	btn.TextSize = 17
+	btn.TextSize = 18
 	btn.Font = Enum.Font.SourceSans
 	btn.TextColor3 = C.text
 	btn.TextXAlignment = Enum.TextXAlignment.Left
 	btn.LayoutOrder = order
 	btn.AutoButtonColor = false
-	corner(btn, 6)
+	corner(btn, 8)
+
 	local pad = Instance.new("UIPadding", btn)
-	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 10)
+
+	-- ⭐ ไอคอนคัดลอกทางขวา
+	local copyIcon = label(btn, {
+		Size = UDim2.fromOffset(30, 34),
+		Position = UDim2.new(1, -34, 0, 0),
+		Text = "📋",
+		TextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTransparency = 0.3,
+	})
 
 	btn.MouseEnter:Connect(function() btn.BackgroundColor3 = C.wordHover end)
 	btn.MouseLeave:Connect(function() btn.BackgroundColor3 = C.word end)
 
+	-- ⭐ แตะ → คัดลอกลงคลิปบอร์ด
 	btn.Activated:Connect(function()
-		if not AutoType.Enabled then
-			Rayfield:Notify({ Title = "⚠️ ปิดอยู่", Content = "เปิดระบบในแท็บ Auto Type ก่อน", Duration = 2 })
+		if not Clipboard.Enabled then
+			Rayfield:Notify({
+				Title = "⚠️ ปิดอยู่",
+				Content = "เปิดระบบคัดลอกในแท็บก่อน",
+				Duration = 2
+			})
 			return
 		end
-		if AutoType.Typing then
-			Rayfield:Notify({ Title = "⏳ รอสักครู่", Content = "กำลังพิมพ์อยู่...", Duration = 1 })
-			return
-		end
 
-		-- ⭐ ตรวจว่ามีช่องโฟกัสอยู่ไหม
-		local box = findFocusedTextBox()
-		local target = box and ("📝 " .. (box.Name or "TextBox")) or "💬 แชท"
-		status.Text = "📤 กำลังพิมพ์ [" .. target .. "]: " .. word
+		local ok, err = copyToClipboard(word)
+		if ok then
+			-- แสดง toast
+			showToast(word)
 
-		smartType(word)
+			-- เปลี่ยนสีปุ่มชั่วคราว
+			btn.BackgroundColor3 = C.copied
+			copyIcon.Text = "✓"
+			copyIcon.TextTransparency = 0
+			copyIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 
-		task.delay(0.8, function()
-			if not AutoType.Typing then
-				status.Text = #picks > 0 and ("แตะคำเพื่อพิมพ์ · " .. #picks .. "/" .. MAX_PICK .. " ตัว") or "แตะคำเพื่อพิมพ์"
+			task.delay(0.6, function()
+				btn.BackgroundColor3 = C.word
+				copyIcon.Text = "📋"
+				copyIcon.TextTransparency = 0.3
+				copyIcon.TextColor3 = C.text
+			end)
+
+			-- อัปเดตสถานะ
+			status.Text = "✅ คัดลอกแล้ว — ไปวางเองในช่อง"
+
+			-- ล้างคลิปบอร์ดอัตโนมัติ (ถ้าเปิด)
+			if Clipboard.AutoClear then
+				task.delay(Clipboard.ClearAfter, function()
+					copyToClipboard("")
+				end)
 			end
-		end)
+		else
+			Rayfield:Notify({
+				Title = "❌ คัดลอกไม่สำเร็จ",
+				Content = tostring(err or "Executor ไม่รองรับ clipboard"),
+				Duration = 3
+			})
+		end
 	end)
 
 	btn.Parent = parent
@@ -528,7 +567,7 @@ local function refresh()
 	end
 	if #picks == 0 then
 		picked.Text = "-"
-		status.Text = "แตะตัวอักษรทางซ้าย"
+		status.Text = "แตะตัวอักษรเพื่อเริ่ม"
 		return
 	end
 	picked.Text = table.concat(picks, " + ")
@@ -537,7 +576,7 @@ local function refresh()
 		return
 	end
 	local found = search(picks)
-	status.Text = #found > 0 and ("พบ " .. #found .. " คำ (แตะเพื่อพิมพ์)") or "ไม่พบคำ"
+	status.Text = #found > 0 and ("พบ " .. #found .. " คำ (แตะเพื่อคัดลอก)") or "ไม่พบคำ"
 	for i, w in ipairs(found) do
 		createWordButton(results, w, i)
 	end
@@ -546,7 +585,7 @@ end
 for _, letter in ipairs(LETTERS) do
 	local btn = Instance.new("TextButton")
 	btn.Text = letter
-	btn.TextSize = 22
+	btn.TextSize = 24
 	btn.Font = Enum.Font.SourceSansBold
 	btn.TextColor3 = C.text
 	btn.BackgroundColor3 = C.btn
@@ -571,34 +610,81 @@ clear.Activated:Connect(function()
 	refresh()
 end)
 
-local function makeDraggable(frame, handle)
-	local dragging, dragStart, startPos = false, nil, nil
-	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
+-- ==================== ปุ่มลอย toggle ====================
+local function setVisible(v)
+	main.Visible = v
+	toggleBtn.Text = v and "✕" or "ก"
+	toggleBtn.BackgroundColor3 = v and C.close or C.accent
+end
+
+-- ลากปุ่มลอย (และแยกแยะการแตะ/ลาก)
+local toggleDragging = false
+local toggleMoved = false
+local tDragStart, tStartPos
+
+toggleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		toggleDragging = true
+		toggleMoved = false
+		tDragStart = input.Position
+		tStartPos = toggleBtn.Position
+	end
+end)
+
+toggleBtn.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		toggleDragging = false
+		if not toggleMoved then
+			setVisible(not main.Visible)
+			if main.Visible then refresh() end
 		end
-	end)
-	handle.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if toggleDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - tDragStart
+		if math.abs(delta.X) + math.abs(delta.Y) > 5 then
+			toggleMoved = true
 		end
-	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch) then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(
-				startPos.X.Scale, startPos.X.Offset + delta.X,
-				startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		if toggleMoved then
+			toggleBtn.Position = UDim2.new(
+				tStartPos.X.Scale, tStartPos.X.Offset + delta.X,
+				tStartPos.Y.Scale, tStartPos.Y.Offset + delta.Y
 			)
 		end
-	end)
-end
-makeDraggable(main, header)
+	end
+end)
+
+-- ลากแผงผ่าน header
+local mDragging, mDragStart, mStartPos = false, nil, nil
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		mDragging = true
+		mDragStart = input.Position
+		mStartPos = main.Position
+	end
+end)
+header.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		mDragging = false
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if mDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - mDragStart
+		main.Position = UDim2.new(
+			mStartPos.X.Scale, mStartPos.X.Offset + delta.X,
+			mStartPos.Y.Scale, mStartPos.Y.Offset + delta.Y
+		)
+	end
+end)
 
 -- ==================== Rayfield Window ====================
 local Window = Rayfield:CreateWindow({
@@ -610,30 +696,30 @@ local Window = Rayfield:CreateWindow({
 })
 
 local GameTab = Window:CreateTab("เลือกพยัญชนะ", 4483362458)
-local AutoTab = Window:CreateTab("⚡ Auto Type", 4483362458)
+local CopyTab = Window:CreateTab("📋 คัดลอก", 4483362458)
 local InfoTab = Window:CreateTab("วิธีใช้", 4483362458)
 
 -- ==================== TAB หลัก ====================
 GameTab:CreateSection("เกมเลือกพยัญชนะ")
-GameTab:CreateLabel("เลือกพยัญชนะ 2-3 ตัว เพื่อหาคำที่ซ่อนอยู่", 4483362458)
-GameTab:CreateLabel("📚 คลังคำทั้งหมด: " .. #WORDS .. " คำ", 4483362458, Color3.fromRGB(95, 207, 159))
-GameTab:CreateLabel("🗑️ คำซ้ำ: " .. dupCount .. " คำ", 4483362458, Color3.fromRGB(180, 180, 180))
-GameTab:CreateLabel("💡 แตะคำ = พิมพ์ลงช่องที่โฟกัส (ถ้าไม่มี = ลงแชท)", 4483362458, Color3.fromRGB(255, 220, 100))
+GameTab:CreateLabel("เลือกพยัญชนะ 2-3 ตัว เพื่อหาคำ", 4483362458)
+GameTab:CreateLabel("📚 คลังคำ: " .. #WORDS .. " คำ", 4483362458, Color3.fromRGB(95, 207, 159))
+GameTab:CreateLabel("💡 แตะคำ → คัดลอกลงคลิปบอร์ด", 4483362458, Color3.fromRGB(255, 220, 100))
+GameTab:CreateLabel("แล้วไปวางเองในช่องที่ต้องการ", 4483362458, Color3.fromRGB(255, 220, 100))
 
 GameTab:CreateToggle({
 	Name = "เปิด/ปิด หน้าต่างเลือกพยัญชนะ",
 	CurrentValue = false,
 	Flag = "LetterGameToggle",
 	Callback = function(value)
-		gameGui.Enabled = value
+		setVisible(value)
 		if value then refresh() end
 	end,
 })
 
 GameTab:CreateButton({
-	Name = "🔍 เปิดหน้าต่างเลือกพยัญชนะ",
+	Name = "🔍 เปิดหน้าต่าง (ทางลัด)",
 	Callback = function()
-		gameGui.Enabled = true
+		setVisible(true)
 		refresh()
 	end,
 })
@@ -646,124 +732,131 @@ GameTab:CreateButton({
 	end,
 })
 
--- ==================== TAB Auto Type ====================
-AutoTab:CreateSection("⚡ โหมดการพิมพ์")
+-- ==================== TAB คัดลอก ====================
+CopyTab:CreateSection("📋 ระบบคัดลอกคลิปบอร์ด")
 
-AutoTab:CreateLabel("auto = พิมพ์ลงช่องที่โฟกัส (ถ้าไม่มี → ลงแชท)", 4483362458, Color3.fromRGB(255, 220, 100))
-AutoTab:CreateLabel("chat = บังคับลงแชทเสมอ", 4483362458, Color3.fromRGB(255, 220, 100))
+CopyTab:CreateLabel("แตะคำ → คัดลอกลงคลิปบอร์ดทันที", 4483362458, Color3.fromRGB(255, 220, 100))
+CopyTab:CreateLabel("แล้วไปวางเองในช่องที่ต้องการ (กดวางในเกม)", 4483362458, Color3.fromRGB(255, 220, 100))
 
-AutoTab:CreateDropdown({
-	Name = "โหมดพิมพ์",
-	Options = { "auto (อัตโนมัติ)", "chat (บังคับลงแชท)" },
-	CurrentOption = { "auto (อัตโนมัติ)" },
-	MultipleOptions = false,
-	Flag = "TypeMode",
-	Callback = function(option)
-		if option[1]:find("auto") then
-			AutoType.Mode = "auto"
-			Rayfield:Notify({ Title = "โหมด: auto", Content = "พิมพ์ลงช่องที่โฟกัส ถ้าไม่มี = ลงแชท", Duration = 2 })
-		else
-			AutoType.Mode = "chat"
-			Rayfield:Notify({ Title = "โหมด: chat", Content = "บังคับลงช่องแชทเสมอ", Duration = 2 })
-		end
-	end,
-})
-
-AutoTab:CreateToggle({
-	Name = "เปิด/ปิด Auto Type",
+CopyTab:CreateToggle({
+	Name = "เปิด/ปิด ระบบคัดลอก",
 	CurrentValue = true,
-	Flag = "AutoTypeToggle",
+	Flag = "ClipboardToggle",
 	Callback = function(value)
-		AutoType.Enabled = value
+		Clipboard.Enabled = value
+		Rayfield:Notify({
+			Title = value and "📋 เปิด" or "ปิด",
+			Content = value and "แตะคำ = คัดลอกทันที" or "ปิดการคัดลอก",
+			Duration = 2
+		})
 	end,
 })
 
-AutoTab:CreateToggle({
-	Name = "กด Enter หลังพิมพ์ (สำหรับช่องแชท)",
+CopyTab:CreateToggle({
+	Name = "แสดง Toast แจ้งเตือน",
 	CurrentValue = true,
-	Flag = "UseEnter",
-	Callback = function(value) AutoType.UseEnter = value end,
+	Flag = "ToastToggle",
+	Callback = function(value) Clipboard.ShowToast = value end,
 })
 
-AutoTab:CreateToggle({
-	Name = "ลบข้อความเก่าในช่องก่อนพิมพ์",
-	CurrentValue = false,
-	Flag = "ClearFirst",
-	Callback = function(value) AutoType.ClearFirst = value end,
-})
-
-AutoTab:CreateSlider({
-	Name = "ดีเลย์ก่อนพิมพ์ (วินาที)",
-	Range = {0, 2},
-	Increment = 0.05,
+CopyTab:CreateSlider({
+	Name = "ระยะเวลา Toast (วินาที)",
+	Range = {0.5, 5},
+	Increment = 0.1,
 	Suffix = " วิ",
-	CurrentValue = 0.15,
-	Flag = "AutoTypeDelay",
-	Callback = function(value) AutoType.Delay = value end,
+	CurrentValue = 1.5,
+	Flag = "ToastDuration",
+	Callback = function(value) Clipboard.ToastDuration = value end,
 })
 
-AutoTab:CreateSection("ทดสอบ")
+CopyTab:CreateSection("ตัวเลือกขั้นสูง")
 
-AutoTab:CreateInput({
+CopyTab:CreateToggle({
+	Name = "ล้างคลิปบอร์ดอัตโนมัติ",
+	CurrentValue = false,
+	Flag = "AutoClear",
+	Callback = function(value) Clipboard.AutoClear = value end,
+})
+
+CopyTab:CreateSlider({
+	Name = "ล้างหลัง (วินาที)",
+	Range = {5, 120},
+	Increment = 5,
+	Suffix = " วิ",
+	CurrentValue = 30,
+	Flag = "ClearAfter",
+	Callback = function(value) Clipboard.ClearAfter = value end,
+})
+
+CopyTab:CreateSection("ทดสอบ")
+
+CopyTab:CreateInput({
 	Name = "ข้อความทดสอบ",
-	CurrentValue = "สวัสดี",
-	PlaceholderText = "พิมพ์ข้อความทดสอบ...",
+	CurrentValue = "ทดสอบคัดลอก",
+	PlaceholderText = "ข้อความ...",
 	RemoveTextAfterFocusLost = false,
 	Flag = "TestText",
 	Callback = function(text)
-		if text and text ~= "" then AutoType.TestText = text end
+		if text and text ~= "" then Clipboard.TestText = text end
 	end,
 })
 
-AutoTab:CreateButton({
-	Name = "📤 ทดสอบพิมพ์",
+CopyTab:CreateButton({
+	Name = "📋 ทดสอบคัดลอก",
 	Callback = function()
-		local t = AutoType.TestText or "สวัสดี"
-		local box = findFocusedTextBox()
-		if box then
-			Rayfield:Notify({ Title = "📤 พิมพ์ลง", Content = box.Name .. " : " .. t, Duration = 2 })
-		else
-			Rayfield:Notify({ Title = "📤 พิมพ์ลงแชท", Content = t, Duration = 2 })
-		end
-		smartType(t)
-	end,
-})
-
-AutoTab:CreateButton({
-	Name = "🔍 ตรวจสอบช่องที่โฟกัส",
-	Callback = function()
-		local box = findFocusedTextBox()
-		if box then
+		local t = Clipboard.TestText or "ทดสอบคัดลอก"
+		local ok, err = copyToClipboard(t)
+		if ok then
+			showToast(t)
 			Rayfield:Notify({
-				Title = "✅ พบช่องที่โฟกัส",
-				Content = "ชื่อ: " .. box.Name .. "\nข้อความ: " .. (box.Text or ""),
-				Duration = 3
-			})
-		else
-			Rayfield:Notify({
-				Title = "❌ ไม่พบช่องที่โฟกัส",
-				Content = "จะพิมพ์ลงแชทแทน",
+				Title = "✅ คัดลอกแล้ว",
+				Content = t,
 				Duration = 2
 			})
+		else
+			Rayfield:Notify({
+				Title = "❌ ไม่สำเร็จ",
+				Content = tostring(err),
+				Duration = 3
+			})
 		end
+	end,
+})
+
+CopyTab:CreateButton({
+	Name = "🧹 ล้างคลิปบอร์ด",
+	Callback = function()
+		copyToClipboard("")
+		Rayfield:Notify({
+			Title = "🧹 ล้างแล้ว",
+			Content = "คลิปบอร์ดว่างเปล่า",
+			Duration = 1.5
+		})
 	end,
 })
 
 -- ==================== TAB วิธีใช้ ====================
-InfoTab:CreateSection("การทำงาน")
-InfoTab:CreateLabel("• แตะคำ → ระบบหาช่องที่โฟกัสก่อน", 4483362458)
-InfoTab:CreateLabel("• ถ้าเจอ → พิมพ์ลงช่องนั้นทันที", 4483362458, Color3.fromRGB(95, 207, 159))
-InfoTab:CreateLabel("• ถ้าไม่เจอ → ส่งลงช่องแชท", 4483362458, Color3.fromRGB(95, 207, 159))
-InfoTab:CreateLabel("• สามารถเปลี่ยนโหมดเป็น chat อย่างเดียวได้", 4483362458)
+InfoTab:CreateSection("📱 วิธีใช้งาน (มือถือ)")
+InfoTab:CreateLabel("1. แตะปุ่ม 'ก' มุมขวาบนเพื่อเปิดหน้าต่าง", 4483362458)
+InfoTab:CreateLabel("2. แตะตัวอักษร 2-3 ตัว", 4483362458)
+InfoTab:CreateLabel("3. แตะคำที่ต้องการ → คัดลอกลงคลิปบอร์ด", 4483362458, Color3.fromRGB(95, 207, 159))
+InfoTab:CreateLabel("4. ไปที่ช่องที่ต้องการในเกม", 4483362458)
+InfoTab:CreateLabel("5. กดวาง (paste) — คำจะปรากฏ", 4483362458, Color3.fromRGB(95, 207, 159))
 
-InfoTab:CreateSection("ตัวอย่าง")
-InfoTab:CreateLabel("• โฟกัสช่องค้นหา → พิมพ์ลงช่องค้นหา", 4483362458)
-InfoTab:CreateLabel("• โฟกัสช่องตั้งชื่อ → พิมพ์ลงช่องตั้งชื่อ", 4483362458)
-InfoTab:CreateLabel("• ไม่โฟกัสช่องไหน → ลงแชท", 4483362458)
-InfoTab:CreateLabel("• กำลังพิมพ์แชทค้าง → ต่อท้ายข้อความในแชท", 4483362458)
+InfoTab:CreateSection("✨ ข้อดีสำหรับมือถือ")
+InfoTab:CreateLabel("• ไม่ต้องพึ่งการพิมพ์อัตโนมัติ", 4483362458)
+InfoTab:CreateLabel("• ทำงานได้ทุกเกม ทุก executor", 4483362458)
+InfoTab:CreateLabel("• ปุ่มใหญ่ แตะง่าย (34px สูง)", 4483362458)
+InfoTab:CreateLabel("• มีไอคอน 📋 บอกว่าคัดลอกได้", 4483362458)
+InfoTab:CreateLabel("• Toast แจ้งเตือนที่มุมล่างจอ", 4483362458)
 
+InfoTab:CreateSection("📊 สถิติ")
+InfoTab:CreateLabel("📚 คำทั้งหมด: " .. #WORDS, 4483362458, Color3.fromRGB(95, 207, 159))
+InfoTab:CreateLabel("🗑️ คำซ้ำที่กรอง: " .. dupCount, 4483362458, Color3.fromRGB(180, 180, 180))
+
+-- ==================== แจ้งเตือน ====================
 Rayfield:Notify({
 	Title = "โหลดสำเร็จ",
-	Content = "คลังคำ " .. #WORDS .. " คำ + Smart Type พร้อม!",
+	Content = "แตะคำ = คัดลอกทันที!",
 	Duration = 3
 })
